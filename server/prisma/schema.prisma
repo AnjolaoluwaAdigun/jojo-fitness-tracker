@@ -1,0 +1,621 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  firstName String?
+  lastName  String?
+  bio           String?
+  profileImage  String?
+  isOnline      Boolean   @default(false)
+  lastActiveAt  DateTime?
+  googleId  String?  @unique
+  
+  // NEW: Social sidebar fields
+  lastSeen    DateTime? @updatedAt
+  status      String?   // Current status message
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Existing relations
+  workouts          Workout[]
+  userStats         UserStats[]
+  createdTemplates  WorkoutTemplate[]
+  posts                Post[]
+  postLikes            PostLike[]
+  comments             Comment[]
+  commentLikes         CommentLike[]
+  postShares           PostShare[]
+  followers            Follow[]               @relation("UserFollowers")
+  following            Follow[]               @relation("UserFollowing")
+  challenges           Challenge[]
+  challengeParticipants ChallengeParticipant[]
+  achievements         Achievement[]
+  notifications        Notification[]
+  sentNotifications    Notification[]         @relation("NotificationSender")
+  
+  // NEW: Social sidebar relations
+  activities           UserActivity[]
+  sessions             UserSession[]
+  masterAchievements   UserAchievement[]
+  
+  // NEW: JoJo AI Wellness Coach relations
+  chatConversations    ChatConversation[]
+  chatMessages         ChatMessage[]
+  wellnessProfile      WellnessProfile?
+  crisisLogs           CrisisLog[]
+  chatAnalytics        ChatAnalytics[]
+  
+  @@map("users")
+}
+
+model Exercise {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  category     String
+  muscleGroups Json
+  instructions String?
+  imageUrl     String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  workoutExercises  WorkoutExercise[]
+  templateExercises TemplateExercise[]
+  
+  @@map("exercises")
+}
+
+model Workout {
+  id         String   @id @default(cuid())
+  userId     String
+  templateId String?  // Reference to template used
+  name       String
+  date       DateTime @default(now())
+  duration   Int?     // in minutes
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  // Relations
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template  WorkoutTemplate?   @relation(fields: [templateId], references: [id])
+  exercises WorkoutExercise[]
+  
+  @@map("workouts")
+}
+
+model WorkoutExercise {
+  id         String @id @default(cuid())
+  workoutId  String
+  exerciseId String
+  sets       Int
+  reps       Json   // JSON array for each set [10, 8, 6]
+  weight     Json   // JSON array for each set [135, 140, 145]
+  restTime   Int?   // in seconds
+  notes      String?
+
+  // Relations
+  workout  Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id])
+  
+  @@map("workout_exercises")
+}
+
+model UserStats {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime @default(now())
+  weight    Float?
+  bodyFat   Float?
+  measurements Json?  // Store measurements as JSON
+  notes     String?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_stats")
+}
+
+// WORKOUT TEMPLATES
+model WorkoutTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String   // "Strength", "Cardio", "Powerlifting", "Bodybuilding"
+  difficulty  String   // "Beginner", "Intermediate", "Advanced"
+  duration    Int?     // estimated duration in minutes
+  isPublic    Boolean  @default(true)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  createdBy User? @relation(fields: [createdById], references: [id])
+  exercises TemplateExercise[]
+  workouts  Workout[]
+
+  @@map("workout_templates")
+}
+
+model TemplateExercise {
+  id         String @id @default(cuid())
+  templateId String
+  exerciseId String
+  order      Int    // order in the template
+  sets       Int
+  reps       Json   // [8, 8, 8] or "8-12" for ranges
+  weight     Json?  // [135, 135, 135] or percentage of 1RM
+  restTime   Int?   // in seconds
+  notes      String?
+
+  // Relations
+  template WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exercise Exercise        @relation(fields: [exerciseId], references: [id])
+
+  @@map("template_exercises")
+}
+
+// SOCIAL MODELS
+model Post {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   @default("general") // 'general', 'workout', 'achievement', 'progress', 'challenge'
+  content     String
+  media       String?  // Store as JSON string instead of array: '["url1", "url2"]'
+  location    String?
+  privacy     String   @default("public") // 'public', 'friends', 'private'
+  
+  // Type-specific data (JSON fields)
+  workoutData     Json?
+  achievementData Json?
+  progressData    Json?
+  challengeData   Json?
+  
+  // NEW: Challenge posts relation
+  challengeId String?
+  challenge   Challenge? @relation("ChallengePosts", fields: [challengeId], references: [id])
+  
+  // Engagement
+  likes       PostLike[]
+  comments    Comment[]
+  shares      PostShare[]
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("posts")
+}
+
+model PostLike {
+  id     String @id @default(cuid())
+  userId String
+  postId String
+  
+  createdAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, postId])
+  @@map("post_likes")
+}
+
+model Comment {
+  id       String @id @default(cuid())
+  userId   String
+  postId   String
+  parentId String? // For replies
+  content  String
+  
+  likes    CommentLike[]
+  replies  Comment[]     @relation("CommentReplies")
+  parent   Comment?      @relation("CommentReplies", fields: [parentId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@map("comments")
+}
+
+model CommentLike {
+  id        String @id @default(cuid())
+  userId    String
+  commentId String
+  
+  createdAt DateTime @default(now())
+  
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, commentId])
+  @@map("comment_likes")
+}
+
+model PostShare {
+  id     String @id @default(cuid())
+  userId String
+  postId String
+  
+  createdAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@map("post_shares")
+}
+
+model Follow {
+  id          String @id @default(cuid())
+  followerId  String
+  followingId String
+  
+  createdAt DateTime @default(now())
+  
+  follower  User @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+  
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Challenge {
+  id          String @id @default(cuid())
+  creatorId   String
+  name        String
+  description String
+  category    String // 'strength', 'cardio', 'flexibility', 'nutrition', 'habit'
+  duration    String
+  startDate   DateTime
+  endDate     DateTime
+  isActive    Boolean @default(true)
+  
+  participants ChallengeParticipant[]
+  
+  // NEW: Challenge posts relation
+  posts        Post[]              @relation("ChallengePosts")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  creator User @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  @@map("challenges")
+}
+
+model ChallengeParticipant {
+  id          String @id @default(cuid())
+  userId      String
+  challengeId String
+  progress    Int    @default(0)
+  completed   Boolean @default(false)
+  
+  // NEW: Activity tracking
+  isActive    Boolean  @default(true)
+  
+  joinedAt DateTime @default(now())
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, challengeId])
+  @@map("challenge_participants")
+}
+
+// EXISTING ACHIEVEMENT MODEL (for individual user achievements)
+model Achievement {
+  id          String @id @default(cuid())
+  userId      String
+  title       String
+  description String
+  icon        String
+  category    String // 'workout', 'social', 'streak', 'milestone'
+  isCompleted Boolean @default(false)
+  progress    Int     @default(0)
+  target      Int     @default(100)
+  
+  unlockedAt DateTime?
+  createdAt  DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("achievements")
+}
+
+model Notification {
+  id      String @id @default(cuid())
+  userId  String
+  type    String // 'like', 'comment', 'follow', 'achievement', 'challenge', 'mention'
+  title   String
+  message String
+  isRead  Boolean @default(false)
+  
+  // Optional references
+  postId      String?
+  commentId   String?
+  challengeId String?
+  fromUserId  String?
+  
+  createdAt DateTime @default(now())
+  
+  user     User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromUser User? @relation("NotificationSender", fields: [fromUserId], references: [id])
+  
+  @@map("notifications")
+}
+
+// NEW MODELS FOR SOCIAL SIDEBAR
+
+// User activity tracking
+model UserActivity {
+  id          String   @id @default(cuid())
+  userId      String
+  activityType String  // "workout", "post", "login", "achievement"
+  data        Json?    // Flexible data storage
+  calories    Int?     // For workout activities
+  duration    Int?     // For workout activities (in minutes)
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_activities")
+}
+
+// User sessions for online status
+model UserSession {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique
+  isActive   Boolean  @default(true)
+  lastSeen   DateTime @default(now())
+  userAgent  String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+// Master achievements list (different from user achievements)
+model MasterAchievement {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  category    String?  // e.g., "workout", "streak", "social"
+  requirement Json?    // Flexible requirements as JSON
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  userAchievements UserAchievement[]
+
+  @@map("master_achievements")
+}
+
+// User achievements (linking users to master achievements)
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+  
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement MasterAchievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
+
+// ==============================================
+// NEW: JOJO AI WELLNESS COACH MODELS
+// ==============================================
+
+// JoJo Chat Conversations
+model ChatConversation {
+  id            String @id @default(cuid())
+  userId        String
+  title         String?
+  isActive      Boolean @default(true)
+  lastMessageAt DateTime?
+  metadata      Json?    // Conversation settings, preferences
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@map("chat_conversations")
+}
+
+// JoJo Chat Messages
+model ChatMessage {
+  id              String @id @default(cuid())
+  conversationId  String
+  userId          String
+  content         String
+  sender          MessageSender
+  messageType     MessageType @default(TEXT)
+  isRead          Boolean @default(false)
+  
+  // AI Response metadata
+  responseTime    Int?     // milliseconds
+  confidence      Float?   // AI confidence score
+  triggerKeywords String?  // JSON string of keywords that triggered response
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  crisisLog    CrisisLog?
+
+  @@map("chat_messages")
+}
+
+// User Wellness Profile for JoJo personalization
+model WellnessProfile {
+  id                   String @id @default(cuid())
+  userId               String @unique
+  
+  // Basic Demographics
+  age                  Int?
+  gender               Gender?
+  region               String?
+  incomeLevel          IncomeLevel?
+  
+  // Fitness & Health
+  fitnessLevel         FitnessLevel?
+  healthGoals          String?          // JSON string array
+  dietaryRestrictions  String?          // JSON string array
+  healthConditions     String?          // JSON string array
+  
+  // JoJo Interaction Preferences
+  communicationStyle   String?          // Casual, professional, motivational
+  preferredLanguage    String @default("en")
+  reminderFrequency    String?          // Daily, weekly, etc.
+  
+  // Wellness Tracking Goals
+  dailyCalorieGoal     Int?
+  weeklyWorkoutGoal    Int?
+  sleepGoalHours       Float?
+  waterIntakeGoal      Float?           // liters per day
+  
+  // Privacy & Safety
+  crisisMonitoring     Boolean @default(true)
+  shareProgress        Boolean @default(false)
+  emergencyContact     String?          // Phone number
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wellness_profiles")
+}
+
+// Crisis Detection & Intervention Logs
+model CrisisLog {
+  id               String @id @default(cuid())
+  userId           String
+  messageId        String? @unique
+  
+  triggerContent   String           // The message that triggered crisis detection
+  keywords         String?          // JSON string of crisis keywords detected
+  riskLevel        CrisisRiskLevel  // LOW, MEDIUM, HIGH, CRITICAL
+  
+  // Response & Intervention
+  responseGiven    String           // The crisis response provided
+  resourcesShared  String?          // JSON string of hotlines, resources provided
+  followUpNeeded   Boolean @default(false)
+  followUpAt       DateTime?
+  
+  // Location for regional resources
+  userRegion       String?
+  hotlinesProvided String?          // JSON string of hotlines provided
+  
+  // Status tracking
+  isResolved       Boolean @default(false)
+  adminNotified    Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message ChatMessage? @relation(fields: [messageId], references: [id])
+
+  @@map("crisis_logs")
+}
+
+// JoJo Chat Analytics
+model ChatAnalytics {
+  id                   String @id @default(cuid())
+  userId               String
+  date                 DateTime @default(now())
+  
+  // Daily metrics
+  messagesCount        Int @default(0)
+  conversationTime     Int @default(0)    // minutes
+  topicsDiscussed      String?            // JSON string array
+  
+  // Engagement metrics
+  responseRating       Float?             // User satisfaction (1-5)
+  helpfulnessScore     Float?             // How helpful was JoJo (1-5)
+  crisisDetections     Int @default(0)
+  
+  // Goal tracking
+  goalsSet             Int @default(0)
+  goalsCompleted       Int @default(0)
+  recommendationsGiven Int @default(0)
+  
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("chat_analytics")
+}
+
+// ==============================================
+// ENUMS FOR JOJO AI FEATURES
+// ==============================================
+
+enum MessageSender {
+  USER
+  JOJO
+}
+
+enum MessageType {
+  TEXT
+  SUGGESTION
+  EXERCISE
+  RECIPE
+  MENTAL_HEALTH
+  CRISIS_RESPONSE
+  GOAL_SETTING
+  PROGRESS_UPDATE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum IncomeLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum FitnessLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum CrisisRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}

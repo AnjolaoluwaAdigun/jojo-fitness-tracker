@@ -1,0 +1,25 @@
+{
+  "name": "jojo-fitness-tracker",
+  "version": "1.0.0",
+  "description": "Full-stack fitness tracker with JoJo AI wellness coach",
+  "scripts": {
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "cd server && npm install",
+    "build:client": "cd client && npm install && npm run build",
+    "start": "cd server && npm start",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm start",
+    "postinstall": "npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "keywords": ["fitness", "ai", "wellness", "groq", "react", "express"],
+  "author": "Adigun Anjolaoluwa",
+  "license": "MIT"
+}
