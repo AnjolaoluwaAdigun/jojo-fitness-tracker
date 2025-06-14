@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Full-stack fitness tracker with JoJo AI wellness coach",
   "scripts": {
-    "build": "echo 'Starting build...' && cd server && npm install && echo 'Server deps installed' && cd ../client && npm install && echo 'Client deps installed' && npm run build && echo 'Client built successfully'",
+    "build": "cd server && npm install && (cd ../client && npm install && npm run build)",
     "start": "cd server && npm start"
   },
   "engines": {
