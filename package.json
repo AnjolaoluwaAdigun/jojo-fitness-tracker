@@ -1,14 +1,11 @@
 {
   "name": "jojo-fitness-tracker",
   "version": "1.0.0",
-  "description": "Full-stack fitness tracker with JoJo AI wellness coach",
   "scripts": {
-    "build": "echo 'Build completed'",
+    "build": "cd client && npm install && npm run build",
     "start": "cd server && npm start"
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "author": "Anjolaoluwa Adigun",
-  "license": "MIT"
+  }
 }
